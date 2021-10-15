@@ -1,11 +1,11 @@
 package gadgetinspector.data;
 
 public class GraphCall {
-    private final MethodReference.Handle callerMethod;
-    private final MethodReference.Handle targetMethod;
-    private final int callerArgIndex;
-    private final String callerArgPath;
-    private final int targetArgIndex;
+    private final MethodReference.Handle callerMethod;  // 调用者（方法）
+    private final MethodReference.Handle targetMethod;  // 被调用者（方法）
+    private final int callerArgIndex;   // 调用者（方法）的参数索引
+    private final String callerArgPath; // 参数对象的哪个字段被传递
+    private final int targetArgIndex;   // 被调用者（方法）的参数索引
 
     public GraphCall(MethodReference.Handle callerMethod, MethodReference.Handle targetMethod, int callerArgIndex, String callerArgPath, int targetArgIndex) {
         this.callerMethod = callerMethod;
@@ -36,7 +36,7 @@ public class GraphCall {
     }
 
     @Override
-    public boolean equals(Object o) {
+    public boolean equals(Object o) {   // 比较方法
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
@@ -52,7 +52,7 @@ public class GraphCall {
     }
 
     @Override
-    public int hashCode() {
+    public int hashCode() { // 存储到键值数据格式中调用的比较方法
         int result = callerMethod != null ? callerMethod.hashCode() : 0;
         result = 31 * result + (targetMethod != null ? targetMethod.hashCode() : 0);
         result = 31 * result + callerArgIndex;
@@ -61,6 +61,9 @@ public class GraphCall {
         return result;
     }
 
+    /**
+     * 数据工厂接口实现
+     */
     public static class Factory implements DataFactory<GraphCall> {
 
         @Override

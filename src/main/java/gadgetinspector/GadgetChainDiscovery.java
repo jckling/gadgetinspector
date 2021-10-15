@@ -2,13 +2,7 @@ package gadgetinspector;
 
 import gadgetinspector.config.GIConfig;
 import gadgetinspector.config.JavaDeserializationConfig;
-import gadgetinspector.data.ClassReference;
-import gadgetinspector.data.DataLoader;
-import gadgetinspector.data.GraphCall;
-import gadgetinspector.data.InheritanceDeriver;
-import gadgetinspector.data.InheritanceMap;
-import gadgetinspector.data.MethodReference;
-import gadgetinspector.data.Source;
+import gadgetinspector.data.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -19,14 +13,7 @@ import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 public class GadgetChainDiscovery {
 
@@ -38,15 +25,25 @@ public class GadgetChainDiscovery {
         this.config = config;
     }
 
+    /**
+     * 搜索可能的利用链，保存到 gadget-chains.txt 中
+     *
+     * @throws Exception
+     */
     public void discover() throws Exception {
+        // 加载方法信息
         Map<MethodReference.Handle, MethodReference> methodMap = DataLoader.loadMethods();
+        // 加载继承信息（inheritanceMap：子类->父类集合，subClassMap：父类->子类集合）
         InheritanceMap inheritanceMap = InheritanceMap.load();
+        // 加载重写信息：方法->重写方法集合
         Map<MethodReference.Handle, Set<MethodReference.Handle>> methodImplMap = InheritanceDeriver.getAllMethodImplementations(
                 inheritanceMap, methodMap);
 
+        // 返回目标方法的可序列化重写方法（包括目标方法本身）
         final ImplementationFinder implementationFinder = config.getImplementationFinder(
                 methodMap, methodImplMap, inheritanceMap);
 
+        // 保存重写信息到 methodimpl.dat：（缩进）类名 方法名 描述符
         try (Writer writer = Files.newBufferedWriter(Paths.get("methodimpl.dat"))) {
             for (Map.Entry<MethodReference.Handle, Set<MethodReference.Handle>> entry : methodImplMap.entrySet()) {
                 writer.write(entry.getKey().getClassReference().getName());
@@ -67,6 +64,7 @@ public class GadgetChainDiscovery {
             }
         }
 
+        // 加载调用关系信息
         Map<MethodReference.Handle, Set<GraphCall>> graphCallMap = new HashMap<>();
         for (GraphCall graphCall : DataLoader.loadData(Paths.get("callgraph.dat"), new GraphCall.Factory())) {
             MethodReference.Handle caller = graphCall.getCallerMethod();
@@ -79,47 +77,66 @@ public class GadgetChainDiscovery {
             }
         }
 
+        // 已经访问过的方法（节点）
         Set<GadgetChainLink> exploredMethods = new HashSet<>();
+        // 待分析的链
         LinkedList<GadgetChain> methodsToExplore = new LinkedList<>();
+        // 加载所有 sources，并将每个 source 分别作为链的第一个节点
         for (Source source : DataLoader.loadData(Paths.get("sources.dat"), new Source.Factory())) {
+            // 创建节点
             GadgetChainLink srcLink = new GadgetChainLink(source.getSourceMethod(), source.getTaintedArgIndex());
             if (exploredMethods.contains(srcLink)) {
                 continue;
             }
+            // 创建仅有一个节点的链
             methodsToExplore.add(new GadgetChain(Arrays.asList(srcLink)));
+            // 将方法标记为已访问
             exploredMethods.add(srcLink);
         }
 
+        // 循环次数
         long iteration = 0;
+        // 保存找到的利用链
         Set<GadgetChain> discoveredGadgets = new HashSet<>();
+        // BFS 搜索 source 到 sink 的利用链
         while (methodsToExplore.size() > 0) {
             if ((iteration % 1000) == 0) {
                 LOGGER.info("Iteration " + iteration + ", Search space: " + methodsToExplore.size());
             }
             iteration += 1;
 
-            GadgetChain chain = methodsToExplore.pop();
-            GadgetChainLink lastLink = chain.links.get(chain.links.size()-1);
+            GadgetChain chain = methodsToExplore.pop(); // 取出一条链
+            GadgetChainLink lastLink = chain.links.get(chain.links.size() - 1); // 取这条链最后一个节点（方法）
 
+            // 获取当前方法与其被调方法的调用关系
             Set<GraphCall> methodCalls = graphCallMap.get(lastLink.method);
             if (methodCalls != null) {
                 for (GraphCall graphCall : methodCalls) {
+                    // 如果当前方法的污染参数与被调方法受方法参数影响的索引不一致则跳过（即第 index 个参数）
+                    // 判断 source 时，索引指出能够被攻击者控制的参数
                     if (graphCall.getCallerArgIndex() != lastLink.taintedArgIndex) {
                         continue;
                     }
 
+                    // 获取被调方法的可序列化重写信息
                     Set<MethodReference.Handle> allImpls = implementationFinder.getImplementations(graphCall.getTargetMethod());
 
+                    // 遍历被调方法的重写方法
                     for (MethodReference.Handle methodImpl : allImpls) {
                         GadgetChainLink newLink = new GadgetChainLink(methodImpl, graphCall.getTargetArgIndex());
+                        // 如果被调方法已经被访问过了，则跳过，减少开销
+                        // 但是跳过会使其他链在经过此节点时断掉
+                        // 而去掉这步可能会遇到环状问题，造成路径无限增加
                         if (exploredMethods.contains(newLink)) {
                             continue;
                         }
 
+                        // 新节点（被调方法）与之前的链组成新链
                         GadgetChain newChain = new GadgetChain(chain, newLink);
+                        // 判断被调方法是否为 sink 点，如果是则加入利用链集合
                         if (isSink(methodImpl, graphCall.getTargetArgIndex(), inheritanceMap)) {
                             discoveredGadgets.add(newChain);
-                        } else {
+                        } else {    // 否则将新链加入待分析的链集合，被调方法加入已访问的方法集合
                             methodsToExplore.add(newChain);
                             exploredMethods.add(newLink);
                         }
@@ -128,6 +145,7 @@ public class GadgetChainDiscovery {
             }
         }
 
+        // 将搜索到的利用链保存到 gadget-chains.txt
         try (OutputStream outputStream = Files.newOutputStream(Paths.get("gadget-chains.txt"));
              Writer writer = new OutputStreamWriter(outputStream, StandardCharsets.UTF_8)) {
             for (GadgetChain chain : discoveredGadgets) {
@@ -138,13 +156,20 @@ public class GadgetChainDiscovery {
         LOGGER.info("Found {} gadget chains.", discoveredGadgets.size());
     }
 
+    /**
+     * 将利用链写入文件：（缩进）类名 方法名 方法描述符 传递污点的参数索引
+     *
+     * @param writer 写入流
+     * @param chain  利用链
+     * @throws IOException
+     */
     private static void printGadgetChain(Writer writer, GadgetChain chain) throws IOException {
-        writer.write(String.format("%s.%s%s (%d)%n",
-                chain.links.get(0).method.getClassReference().getName(),
-                chain.links.get(0).method.getName(),
-                chain.links.get(0).method.getDesc(),
-                chain.links.get(0).taintedArgIndex));
-        for (int i = 1; i < chain.links.size(); i++) {
+        writer.write(String.format("%s.%s%s (%d)%n",    // 污点源
+                chain.links.get(0).method.getClassReference().getName(),    // 类名
+                chain.links.get(0).method.getName(),    // 方法名
+                chain.links.get(0).method.getDesc(),    // 描述符
+                chain.links.get(0).taintedArgIndex));   // 污点参数索引
+        for (int i = 1; i < chain.links.size(); i++) {  // 利用链
             writer.write(String.format("  %s.%s%s (%d)%n",
                     chain.links.get(i).method.getClassReference().getName(),
                     chain.links.get(i).method.getName(),
@@ -154,6 +179,7 @@ public class GadgetChainDiscovery {
         writer.write("\n");
     }
 
+    // 利用链
     private static class GadgetChain {
         private final List<GadgetChainLink> links;
 
@@ -168,6 +194,7 @@ public class GadgetChainDiscovery {
         }
     }
 
+    // 利用链（节点）
     private static class GadgetChainLink {
         private final MethodReference.Handle method;
         private final int taintedArgIndex;
@@ -224,12 +251,14 @@ public class GadgetChainDiscovery {
     */
 
     /**
+     * 预定义的 sink 点
      * Represents a collection of methods in the JDK that we consider to be "interesting". If a gadget chain can
      * successfully exercise one of these, it could represent anything as mundade as causing the target to make a DNS
      * query to full blown RCE.
-     * @param method
-     * @param argIndex
-     * @param inheritanceMap
+     *
+     * @param method         方法
+     * @param argIndex       参数索引
+     * @param inheritanceMap 继承信息
      * @return
      */
     // TODO: Parameterize this as a configuration option
@@ -243,7 +272,7 @@ public class GadgetChainDiscovery {
             return true;
         }
         if (method.getClassReference().getName().equals("java/nio/file/Files")
-            && (method.getName().equals("newInputStream")
+                && (method.getName().equals("newInputStream")
                 || method.getName().equals("newOutputStream")
                 || method.getName().equals("newBufferedReader")
                 || method.getName().equals("newBufferedWriter"))) {

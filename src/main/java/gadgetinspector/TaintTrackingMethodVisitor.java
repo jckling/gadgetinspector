@@ -10,47 +10,48 @@ import java.util.*;
 
 public class TaintTrackingMethodVisitor<T> extends MethodVisitor {
 
-    private static final Object[][] PASSTHROUGH_DATAFLOW = new Object[][] {
-            { "java/lang/Object", "toString", "()Ljava/lang/String;", 0 },
+    // 类名，方法名，方法描述符，传递污染的参数索引
+    private static final Object[][] PASSTHROUGH_DATAFLOW = new Object[][]{
+            {"java/lang/Object", "toString", "()Ljava/lang/String;", 0},
 
             // Taint from ObjectInputStream. Note that defaultReadObject() is handled differently below
-            { "java/io/ObjectInputStream", "readObject", "()Ljava/lang/Object;", 0},
-            { "java/io/ObjectInputStream", "readFields", "()Ljava/io/ObjectInputStream$GetField;", 0},
-            { "java/io/ObjectInputStream$GetField", "get", "(Ljava/lang/String;Ljava/lang/Object;)Ljava/lang/Object;", 0 },
+            {"java/io/ObjectInputStream", "readObject", "()Ljava/lang/Object;", 0},
+            {"java/io/ObjectInputStream", "readFields", "()Ljava/io/ObjectInputStream$GetField;", 0},
+            {"java/io/ObjectInputStream$GetField", "get", "(Ljava/lang/String;Ljava/lang/Object;)Ljava/lang/Object;", 0},
 
             // Pass taint from class name to returned class
-            { "java/lang/Object", "getClass", "()Ljava/lang/Class;", 0 },
-            { "java/lang/Class", "forName", "(Ljava/lang/String;)Ljava/lang/Class;", 0 },
+            {"java/lang/Object", "getClass", "()Ljava/lang/Class;", 0},
+            {"java/lang/Class", "forName", "(Ljava/lang/String;)Ljava/lang/Class;", 0},
             // Pass taint from class or method name to returned method
-            { "java/lang/Class", "getMethod", "(Ljava/lang/String;[Ljava/lang/Class;)Ljava/lang/reflect/Method;", 0, 1 },
+            {"java/lang/Class", "getMethod", "(Ljava/lang/String;[Ljava/lang/Class;)Ljava/lang/reflect/Method;", 0, 1},
             // Pass taint from class to methods
-            { "java/lang/Class", "getMethods", "()[Ljava/lang/reflect/Method;", 0 },
+            {"java/lang/Class", "getMethods", "()[Ljava/lang/reflect/Method;", 0},
 
-            { "java/lang/StringBuilder", "<init>", "(Ljava/lang/String;)V", 0, 1 },
-            { "java/lang/StringBuilder", "<init>", "(Ljava/lang/CharSequence;)V", 0, 1 },
-            { "java/lang/StringBuilder", "append", "(Ljava/lang/Object;)Ljava/lang/StringBuilder;", 0, 1 },
-            { "java/lang/StringBuilder", "append", "(Ljava/lang/String;)Ljava/lang/StringBuilder;", 0, 1 },
-            { "java/lang/StringBuilder", "append", "(Ljava/lang/StringBuffer;)Ljava/lang/StringBuilder;", 0, 1 },
-            { "java/lang/StringBuilder", "append", "(Ljava/lang/CharSequence;)Ljava/lang/StringBuilder;", 0, 1 },
-            { "java/lang/StringBuilder", "append", "(Ljava/lang/CharSequence;II)Ljava/lang/StringBuilder;", 0, 1 },
-            { "java/lang/StringBuilder", "toString", "()Ljava/lang/String;", 0 },
+            {"java/lang/StringBuilder", "<init>", "(Ljava/lang/String;)V", 0, 1},
+            {"java/lang/StringBuilder", "<init>", "(Ljava/lang/CharSequence;)V", 0, 1},
+            {"java/lang/StringBuilder", "append", "(Ljava/lang/Object;)Ljava/lang/StringBuilder;", 0, 1},
+            {"java/lang/StringBuilder", "append", "(Ljava/lang/String;)Ljava/lang/StringBuilder;", 0, 1},
+            {"java/lang/StringBuilder", "append", "(Ljava/lang/StringBuffer;)Ljava/lang/StringBuilder;", 0, 1},
+            {"java/lang/StringBuilder", "append", "(Ljava/lang/CharSequence;)Ljava/lang/StringBuilder;", 0, 1},
+            {"java/lang/StringBuilder", "append", "(Ljava/lang/CharSequence;II)Ljava/lang/StringBuilder;", 0, 1},
+            {"java/lang/StringBuilder", "toString", "()Ljava/lang/String;", 0},
 
-            { "java/io/ByteArrayInputStream", "<init>", "([B)V", 1 },
-            { "java/io/ByteArrayInputStream", "<init>", "([BII)V", 1 },
-            { "java/io/ObjectInputStream", "<init>", "(Ljava/io/InputStream;)V", 1},
-            { "java/io/File", "<init>", "(Ljava/lang/String;I)V", 1},
-            { "java/io/File", "<init>", "(Ljava/lang/String;Ljava/io/File;)V", 1},
-            { "java/io/File", "<init>", "(Ljava/lang/String;)V", 1},
-            { "java/io/File", "<init>", "(Ljava/lang/String;Ljava/lang/String;)V", 1},
+            {"java/io/ByteArrayInputStream", "<init>", "([B)V", 1},
+            {"java/io/ByteArrayInputStream", "<init>", "([BII)V", 1},
+            {"java/io/ObjectInputStream", "<init>", "(Ljava/io/InputStream;)V", 1},
+            {"java/io/File", "<init>", "(Ljava/lang/String;I)V", 1},
+            {"java/io/File", "<init>", "(Ljava/lang/String;Ljava/io/File;)V", 1},
+            {"java/io/File", "<init>", "(Ljava/lang/String;)V", 1},
+            {"java/io/File", "<init>", "(Ljava/lang/String;Ljava/lang/String;)V", 1},
 
-            { "java/nio/paths/Paths", "get", "(Ljava/lang/String;[Ljava/lang/String;)Ljava/nio/file/Path;", 0},
+            {"java/nio/paths/Paths", "get", "(Ljava/lang/String;[Ljava/lang/String;)Ljava/nio/file/Path;", 0},
 
-            { "java/net/URL", "<init>", "(Ljava/lang/String;)V", 1 },
+            {"java/net/URL", "<init>", "(Ljava/lang/String;)V", 1},
     };
 
     private static class SavedVariableState<T> {
-        List<Set<T>> localVars;
-        List<Set<T>> stackVars;
+        List<Set<T>> localVars; // 本地变量表
+        List<Set<T>> stackVars; // 操作数栈
 
         public SavedVariableState() {
             localVars = new ArrayList<>();
@@ -85,15 +86,15 @@ public class TaintTrackingMethodVisitor<T> extends MethodVisitor {
         }
     }
 
-    private final InheritanceMap inheritanceMap;
-    private final Map<MethodReference.Handle, Set<Integer>> passthroughDataflow;
+    private final InheritanceMap inheritanceMap;    // 继承信息
+    private final Map<MethodReference.Handle, Set<Integer>> passthroughDataflow;    // 数据流信息：方法->传递污染的参数索引
 
-    private final AnalyzerAdapter analyzerAdapter;
-    private final int access;
-    private final String name;
-    private final String desc;
-    private final String signature;
-    private final String[] exceptions;
+    private final AnalyzerAdapter analyzerAdapter;  //
+    private final int access;           // 访问标志（Opcodes）
+    private final String name;          // 名称
+    private final String desc;          // 描述符
+    private final String signature;     // 签名
+    private final String[] exceptions;  // 方法异常类的内部名称，可能为空
 
     public TaintTrackingMethodVisitor(InheritanceMap inheritanceMap,
                                       Map<MethodReference.Handle, Set<Integer>> passthroughDataflow,
@@ -102,7 +103,7 @@ public class TaintTrackingMethodVisitor<T> extends MethodVisitor {
         super(api, new AnalyzerAdapter(owner, access, name, desc, mv));
         this.inheritanceMap = inheritanceMap;
         this.passthroughDataflow = passthroughDataflow;
-        this.analyzerAdapter = (AnalyzerAdapter)this.mv;
+        this.analyzerAdapter = (AnalyzerAdapter) this.mv;
         this.access = access;
         this.name = name;
         this.desc = desc;
@@ -130,22 +131,25 @@ public class TaintTrackingMethodVisitor<T> extends MethodVisitor {
         }
     }
 
-    private void push(T ... possibleValues) {
+    private void push(T... possibleValues) {
         Set<T> vars = new HashSet<>();
         for (T s : possibleValues) {
             vars.add(s);
         }
         savedVariableState.stackVars.add(vars);
     }
+
     private void push(Set<T> possibleValues) {
         // Intentionally make this a reference to the same set
         savedVariableState.stackVars.add(possibleValues);
     }
+
     private Set<T> pop() {
-        return savedVariableState.stackVars.remove(savedVariableState.stackVars.size()-1);
+        return savedVariableState.stackVars.remove(savedVariableState.stackVars.size() - 1);
     }
+
     private Set<T> get(int stackIndex) {
-        return savedVariableState.stackVars.get(savedVariableState.stackVars.size()-1-stackIndex);
+        return savedVariableState.stackVars.get(savedVariableState.stackVars.size() - 1 - stackIndex);
     }
 
     @Override
@@ -160,7 +164,7 @@ public class TaintTrackingMethodVisitor<T> extends MethodVisitor {
             if (typ.equals(Opcodes.LONG) || typ.equals(Opcodes.DOUBLE)) {
                 objectSize = 2;
             }
-            for (int j = savedVariableState.stackVars.size(); j < stackSize+objectSize; j++) {
+            for (int j = savedVariableState.stackVars.size(); j < stackSize + objectSize; j++) {
                 savedVariableState.stackVars.add(new HashSet<T>());
             }
             stackSize += objectSize;
@@ -172,16 +176,16 @@ public class TaintTrackingMethodVisitor<T> extends MethodVisitor {
             if (typ.equals(Opcodes.LONG) || typ.equals(Opcodes.DOUBLE)) {
                 objectSize = 2;
             }
-            for (int j = savedVariableState.localVars.size(); j < localSize+objectSize; j++) {
+            for (int j = savedVariableState.localVars.size(); j < localSize + objectSize; j++) {
                 savedVariableState.localVars.add(new HashSet<T>());
             }
             localSize += objectSize;
         }
         for (int i = savedVariableState.stackVars.size() - stackSize; i > 0; i--) {
-            savedVariableState.stackVars.remove(savedVariableState.stackVars.size()-1);
+            savedVariableState.stackVars.remove(savedVariableState.stackVars.size() - 1);
         }
         for (int i = savedVariableState.localVars.size() - localSize; i > 0; i--) {
-            savedVariableState.localVars.remove(savedVariableState.localVars.size()-1);
+            savedVariableState.localVars.remove(savedVariableState.localVars.size() - 1);
         }
 
         super.visitFrame(type, nLocal, local, nStack, stack);
@@ -195,7 +199,7 @@ public class TaintTrackingMethodVisitor<T> extends MethodVisitor {
 
         sanityCheck();
 
-        switch(opcode) {
+        switch (opcode) {
             case Opcodes.NOP:
                 break;
             case Opcodes.ACONST_NULL:
@@ -486,7 +490,7 @@ public class TaintTrackingMethodVisitor<T> extends MethodVisitor {
 
     @Override
     public void visitIntInsn(int opcode, int operand) {
-        switch(opcode) {
+        switch (opcode) {
             case Opcodes.BIPUSH:
             case Opcodes.SIPUSH:
                 push();
@@ -505,14 +509,14 @@ public class TaintTrackingMethodVisitor<T> extends MethodVisitor {
     }
 
     @Override
-    public void visitVarInsn(int opcode, int var) {
+    public void visitVarInsn(int opcode, int var) { // 访问局部变量指令，局部变量指令是加载或存储局部变量值的指令。
         // Extend local variable state to make sure we include the variable index
         for (int i = savedVariableState.localVars.size(); i <= var; i++) {
             savedVariableState.localVars.add(new HashSet<T>());
         }
 
         Set<T> saved0;
-        switch(opcode) {
+        switch (opcode) {
             case Opcodes.ILOAD:
             case Opcodes.FLOAD:
                 push();
@@ -554,7 +558,7 @@ public class TaintTrackingMethodVisitor<T> extends MethodVisitor {
 
     @Override
     public void visitTypeInsn(int opcode, String type) {
-        switch(opcode) {
+        switch (opcode) {
             case Opcodes.NEW:
                 push();
                 break;
@@ -618,89 +622,112 @@ public class TaintTrackingMethodVisitor<T> extends MethodVisitor {
     public void visitMethodInsn(int opcode, String owner, String name, String desc, boolean itf) {
         final MethodReference.Handle methodHandle = new MethodReference.Handle(
                 new ClassReference.Handle(owner), name, desc);
-
+        // 根据描述符得出参数类型（占用空间大小）
         Type[] argTypes = Type.getArgumentTypes(desc);
+
+        // 非静态方法的第一个参数是对象本身，即 this
         if (opcode != Opcodes.INVOKESTATIC) {
-            Type[] extendedArgTypes = new Type[argTypes.length+1];
+            Type[] extendedArgTypes = new Type[argTypes.length + 1];
             System.arraycopy(argTypes, 0, extendedArgTypes, 1, argTypes.length);
             extendedArgTypes[0] = Type.getObjectType(owner);
             argTypes = extendedArgTypes;
         }
 
-        final Type returnType = Type.getReturnType(desc);
-        final int retSize = returnType.getSize();
+        final Type returnType = Type.getReturnType(desc);   // 根据描述符获取返回值类型
+        final int retSize = returnType.getSize();           // 根据描述符获取返回值类型的大小
 
         switch (opcode) {
-            case Opcodes.INVOKESTATIC:
-            case Opcodes.INVOKEVIRTUAL:
-            case Opcodes.INVOKESPECIAL:
-            case Opcodes.INVOKEINTERFACE:
+            case Opcodes.INVOKESTATIC:      // 调用静态方法
+            case Opcodes.INVOKEVIRTUAL:     // 调用实例方法
+            case Opcodes.INVOKESPECIAL:     // 调用超类构造方法，实例初始化方法，私有方法
+            case Opcodes.INVOKEINTERFACE:   // 调用接口方法
+                // 模拟操作数栈
                 final List<Set<T>> argTaint = new ArrayList<Set<T>>(argTypes.length);
+                // 方法调用前先把操作数入栈
                 for (int i = 0; i < argTypes.length; i++) {
                     argTaint.add(null);
                 }
 
+                // 从栈中弹出参数，将参数值拷贝到 argTaint
                 for (int i = 0; i < argTypes.length; i++) {
                     Type argType = argTypes[i];
                     if (argType.getSize() > 0) {
+                        // 注意这里是 argType.getSize() - 1，保留了一个单位
                         for (int j = 0; j < argType.getSize() - 1; j++) {
                             pop();
                         }
+                        // 参数从右往左入栈，将保留的单位作为参数值（实际上是一个 Set<T>）
                         argTaint.set(argTypes.length - 1 - i, pop());
                     }
                 }
 
+                // 如果是构造方法，则认为对象本身（this）可以污染返回值，添加到 resultTaint
                 Set<T> resultTaint;
                 if (name.equals("<init>")) {
                     // Pass result taint through to original taint set; the initialized object is directly tainted by
                     // parameters
-                    resultTaint = argTaint.get(0);
+                    resultTaint = argTaint.get(0);  // 从栈顶取出对象本身
                 } else {
-                    resultTaint = new HashSet<>();
+                    resultTaint = new HashSet<>();  // 否则初始化为空
                 }
 
+                // 如果调用的方法是 ObjectInputStream 类的 defaultReadObject 则认为对象本身受到污染
+                // 本地变量表的第一个元素是调用方法所属的对象本身（能够传递污染的参数索引集合）
+                // 添加被调用方法的传递污染参数索引集合
                 // If calling defaultReadObject on a tainted ObjectInputStream, that taint passes to "this"
                 if (owner.equals("java/io/ObjectInputStream") && name.equals("defaultReadObject") && desc.equals("()V")) {
                     savedVariableState.localVars.get(0).addAll(argTaint.get(0));
                 }
 
+                // 遍历预定义的数据流列表，判断被调用方法是否在其中
+                // 如果是，则添加到 resultTaint
                 for (Object[] passthrough : PASSTHROUGH_DATAFLOW) {
                     if (passthrough[0].equals(owner) && passthrough[1].equals(name) && passthrough[2].equals(desc)) {
+                        // 遍历参数索引
                         for (int i = 3; i < passthrough.length; i++) {
-                            resultTaint.addAll(argTaint.get((Integer)passthrough[i]));
+                            resultTaint.addAll(argTaint.get((Integer) passthrough[i]));
                         }
                     }
                 }
 
+                // 如果已经有数据流判断结果
                 if (passthroughDataflow != null) {
+                    // 经过逆拓扑排序，调用链末端的方法先被访问和判断，即当前方法调用的方法已经被判断过
                     Set<Integer> passthroughArgs = passthroughDataflow.get(methodHandle);
                     if (passthroughArgs != null) {
+                        // 遍历参数索引
                         for (int arg : passthroughArgs) {
+                            // 从栈中获取能够传递污染的参数索引
                             resultTaint.addAll(argTaint.get(arg));
                         }
                     }
                 }
 
+                // Object 对象的非静态方法实现 Collection/Map，则认为集合中所有元素都能够传递污染
                 // Heuristic; if the object implements java.util.Collection or java.util.Map, assume any method accepting an object
                 // taints the collection. Assume that any method returning an object returns the taint of the collection.
                 if (opcode != Opcodes.INVOKESTATIC && argTypes[0].getSort() == Type.OBJECT) {
+                    // 获取被调方法的所有父类/超类/接口类
                     Set<ClassReference.Handle> parents = inheritanceMap.getSuperClasses(new ClassReference.Handle(argTypes[0].getClassName().replace('.', '/')));
                     if (parents != null && (parents.contains(new ClassReference.Handle("java/util/Collection")) ||
                             parents.contains(new ClassReference.Handle("java/util/Map")))) {
-                        for (int i = 1; i < argTaint.size(); i++) {
-                            argTaint.get(0).addAll(argTaint.get(i));
+                        // 如果父类为集合类，则存储的所有元素都可以传递污染
+                        for (int i = 1; i < argTaint.size(); i++) { // 注意这里从 1 开始，第一个元素是方法所属类的实例对象
+                            argTaint.get(0).addAll(argTaint.get(i));    // 添加到 argTaint
                         }
 
+                        // 如果返回值是 Object 类型或 Array 类型，则认为方法所属类的实例对象本身可以传递污染
                         if (returnType.getSort() == Type.OBJECT || returnType.getSort() == Type.ARRAY) {
                             resultTaint.addAll(argTaint.get(0));
                         }
                     }
                 }
 
+                // 返回值不为空
                 if (retSize > 0) {
-                    push(resultTaint);
-                    for (int i = 1; i < retSize; i++) {
-                        push();
+                    push(resultTaint); // 将能够传递污染的索引集合入栈
+                    for (int i = 1; i < retSize; i++) { // 注意这里从 1 开始
+                        push(); // 模拟返回值，实际上第一个单位存储的的是索引集合，第二个为空的集合
                     }
                 }
                 break;
@@ -897,31 +924,35 @@ public class TaintTrackingMethodVisitor<T> extends MethodVisitor {
     }
 
     protected Set<T> getStackTaint(int index) {
-        return savedVariableState.stackVars.get(savedVariableState.stackVars.size()-1-index);
+        return savedVariableState.stackVars.get(savedVariableState.stackVars.size() - 1 - index);
     }
-    protected void setStackTaint(int index, T ... possibleValues) {
+
+    protected void setStackTaint(int index, T... possibleValues) {
         Set<T> values = new HashSet<T>();
         for (T value : possibleValues) {
             values.add(value);
         }
-        savedVariableState.stackVars.set(savedVariableState.stackVars.size()-1-index, values);
+        savedVariableState.stackVars.set(savedVariableState.stackVars.size() - 1 - index, values);
     }
+
     protected void setStackTaint(int index, Collection<T> possibleValues) {
         Set<T> values = new HashSet<T>();
         values.addAll(possibleValues);
-        savedVariableState.stackVars.set(savedVariableState.stackVars.size()-1-index, values);
+        savedVariableState.stackVars.set(savedVariableState.stackVars.size() - 1 - index, values);
     }
 
     protected Set<T> getLocalTaint(int index) {
         return savedVariableState.localVars.get(index);
     }
-    protected void setLocalTaint(int index, T ... possibleValues) {
+
+    protected void setLocalTaint(int index, T... possibleValues) {
         Set<T> values = new HashSet<T>();
         for (T value : possibleValues) {
             values.add(value);
         }
         savedVariableState.localVars.set(index, values);
     }
+
     protected void setLocalTaint(int index, Collection<T> possibleValues) {
         Set<T> values = new HashSet<T>();
         values.addAll(possibleValues);
@@ -932,14 +963,17 @@ public class TaintTrackingMethodVisitor<T> extends MethodVisitor {
         if (Boolean.TRUE.equals(serializableDecider.apply(clazz))) {
             return true;
         }
+        // 获取 clazz 的所有子类
         Set<ClassReference.Handle> subClasses = inheritanceMap.getSubClasses(clazz);
         if (subClasses != null) {
+            // 遍历 clazz 的所有子类是否存在可被序列化的 class
             for (ClassReference.Handle subClass : subClasses) {
+                // 使用各类型的 serializableDecider.apply 方法判断 class 是否可序列化
                 if (Boolean.TRUE.equals(serializableDecider.apply(subClass))) {
                     return true;
                 }
             }
-    }
+        }
         return false;
     }
 }

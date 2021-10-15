@@ -1,10 +1,10 @@
 package gadgetinspector.data;
 
 public class MethodReference {
-    private final ClassReference.Handle classReference;
-    private final String name;
-    private final String desc;
-    private final boolean isStatic;
+    private final ClassReference.Handle classReference; // 所属类
+    private final String name;                          // 方法名
+    private final String desc;                          // 描述符
+    private final boolean isStatic;                     // 是否为静态方法
 
     public MethodReference(ClassReference.Handle classReference, String name, String desc, boolean isStatic) {
         this.classReference = classReference;
@@ -34,9 +34,9 @@ public class MethodReference {
     }
 
     public static class Handle {
-        private final ClassReference.Handle classReference;
-        private final String name;
-        private final String desc;
+        private final ClassReference.Handle classReference; // 所属类
+        private final String name;                          // 方法名
+        private final String desc;                          // 描述符
 
         public Handle(ClassReference.Handle classReference, String name, String desc) {
             this.classReference = classReference;
@@ -78,6 +78,9 @@ public class MethodReference {
         }
     }
 
+    /**
+     * 数据工厂接口实现
+     */
     public static class Factory implements DataFactory<MethodReference> {
 
         @Override
@@ -91,7 +94,7 @@ public class MethodReference {
 
         @Override
         public String[] serialize(MethodReference obj) {
-            return new String[] {
+            return new String[]{
                     obj.classReference.getName(),
                     obj.name,
                     obj.desc,

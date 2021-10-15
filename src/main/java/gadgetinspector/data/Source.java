@@ -1,10 +1,10 @@
 package gadgetinspector.data;
 
 public class Source {
-    private final MethodReference.Handle sourceMethod;
-    private final int taintedArgIndex;
+    private final MethodReference.Handle sourceMethod;  // 所属方法
+    private final int taintedArgIndex;                  // 传递污点的参数索引
 
-    public Source(MethodReference.Handle sourceMethod,int taintedArgIndex) {
+    public Source(MethodReference.Handle sourceMethod, int taintedArgIndex) {
         this.sourceMethod = sourceMethod;
         this.taintedArgIndex = taintedArgIndex;
     }
@@ -17,6 +17,9 @@ public class Source {
         return taintedArgIndex;
     }
 
+    /**
+     * 数据工厂接口实现
+     */
     public static class Factory implements DataFactory<Source> {
 
         @Override

@@ -10,5 +10,5 @@ import java.util.function.Function;
  * {@link SimpleSerializableDecider}) just checks if the class implements serializable. Other use-cases may have more
  * complicated logic.
  */
-public interface SerializableDecider extends Function<ClassReference.Handle, Boolean> {
+public interface SerializableDecider extends Function<ClassReference.Handle, Boolean> { // 序列化决策者
 }

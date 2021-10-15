@@ -8,13 +8,19 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class SimpleSerializableDecider implements SerializableDecider {
-    private final Map<ClassReference.Handle, Boolean> cache = new HashMap<>();
-    private final InheritanceMap inheritanceMap;
+    private final Map<ClassReference.Handle, Boolean> cache = new HashMap<>();  // 缓存判断结果，类->是否可序列化
+    private final InheritanceMap inheritanceMap;    // 继承信息
 
     public SimpleSerializableDecider(InheritanceMap inheritanceMap) {
         this.inheritanceMap = inheritanceMap;
     }
 
+    /**
+     * 判断类是否可以序列化，并将判断结果添加到缓存
+     *
+     * @param handle 类
+     * @return
+     */
     @Override
     public Boolean apply(ClassReference.Handle handle) {
         Boolean cached = cache.get(handle);
@@ -28,12 +34,20 @@ public class SimpleSerializableDecider implements SerializableDecider {
         return result;
     }
 
+    /**
+     * 判断类是否可以序列化
+     *
+     * @param handle 类
+     * @return
+     */
     private Boolean applyNoCache(ClassReference.Handle handle) {
 
+        // 判断类是否在黑名单内
         if (isBlacklistedClass(handle)) {
             return false;
         }
 
+        // 判断是否有直接或间接实现 java/io/Serializable 序列化接口
         if (inheritanceMap.isSubclassOf(handle, new ClassReference.Handle("java/io/Serializable"))) {
             return true;
         }
@@ -41,6 +55,12 @@ public class SimpleSerializableDecider implements SerializableDecider {
         return false;
     }
 
+    /**
+     * 判断类是否在黑名单内
+     *
+     * @param clazz 类
+     * @return
+     */
     private static boolean isBlacklistedClass(ClassReference.Handle clazz) {
         if (clazz.getName().startsWith("com/google/common/collect/")) {
             return true;

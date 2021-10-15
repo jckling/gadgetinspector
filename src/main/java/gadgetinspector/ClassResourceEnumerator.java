@@ -16,15 +16,30 @@ public class ClassResourceEnumerator {
         this.classLoader = classLoader;
     }
 
+    /**
+     * 返回 java 运行时的类和指定的 java 包中的类
+     *
+     * @return
+     * @throws IOException
+     */
     public Collection<ClassResource> getAllClasses() throws IOException {
+        // 先加载运行时类（bootstrap classes）
         Collection<ClassResource> result = new ArrayList<>(getRuntimeClasses());
+        // 使用 ClassLoader 加载用户指定的 java 包
         for (ClassPath.ClassInfo classInfo : ClassPath.from(classLoader).getAllClasses()) {
             result.add(new ClassLoaderClassResource(classLoader, classInfo.getResourceName()));
         }
         return result;
     }
 
+    /**
+     * 返回运行时的类
+     *
+     * @return
+     * @throws IOException
+     */
     private Collection<ClassResource> getRuntimeClasses() throws IOException {
+        // Java8 及以前的运行时类可以通过读取 rt.jar 文件获取
         // A hacky way to get the current JRE's rt.jar. Depending on the class loader, rt.jar may be in the
         // bootstrap classloader so all the JDK classes will be excluded from classpath scanning with this!
         // However, this only works up to Java 8, since after that Java uses some crazy module magic.
@@ -41,6 +56,8 @@ public class ClassResourceEnumerator {
             return result;
         }
 
+        // Java9 及以后的运行时类通过 JRT 文件系统读取路径下的类文件
+        // https://stackoverflow.com/questions/1240387/where-are-the-java-system-packages-stored/53897006#53897006
         // Try finding all the JDK classes using the Java9+ modules method:
         try {
             FileSystem fs = FileSystems.getFileSystem(URI.create("jrt:/"));
@@ -56,11 +73,14 @@ public class ClassResourceEnumerator {
         return result;
     }
 
+    // 类资源接口
     public static interface ClassResource {
-        public InputStream getInputStream() throws IOException;
-        public String getName();
+        public InputStream getInputStream() throws IOException; // 读取文件
+
+        public String getName();    // 文件名
     }
 
+    // 直接从路径读取类文件
     private static class PathClassResource implements ClassResource {
         private final Path path;
 
@@ -79,6 +99,7 @@ public class ClassResourceEnumerator {
         }
     }
 
+    // 使用 ClassLoader 读取类文件
     private static class ClassLoaderClassResource implements ClassResource {
         private final ClassLoader classLoader;
         private final String resourceName;

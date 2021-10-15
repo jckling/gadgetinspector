@@ -10,6 +10,16 @@ import java.nio.file.Paths;
 import java.util.*;
 
 public class DataLoader {
+
+    /**
+     * 根据数据工厂接口解析数据到对象
+     *
+     * @param filePath 文件路径
+     * @param factory  工厂方法
+     * @param <T>      类型
+     * @return
+     * @throws IOException
+     */
     public static <T> List<T> loadData(Path filePath, DataFactory<T> factory) throws IOException {
         final List<String> lines = Files.readLines(filePath.toFile(), StandardCharsets.UTF_8);
         final List<T> values = new ArrayList<T>(lines.size());
@@ -19,6 +29,15 @@ public class DataLoader {
         return values;
     }
 
+    /**
+     * 根据数据工厂接口将数据写入文件
+     *
+     * @param filePath 文件路径
+     * @param factory  工厂方法
+     * @param values   待写入的数据
+     * @param <T>      类型
+     * @throws IOException
+     */
     public static <T> void saveData(Path filePath, DataFactory<T> factory, Collection<T> values) throws IOException {
         try (BufferedWriter writer = Files.newWriter(filePath.toFile(), StandardCharsets.UTF_8)) {
             for (T value : values) {
@@ -41,6 +60,11 @@ public class DataLoader {
         }
     }
 
+    /**
+     * 从 classes.dat 加载类信息
+     *
+     * @return
+     */
     public static Map<ClassReference.Handle, ClassReference> loadClasses() {
         try {
             Map<ClassReference.Handle, ClassReference> classMap = new HashMap<>();
@@ -53,6 +77,11 @@ public class DataLoader {
         }
     }
 
+    /**
+     * 从 methods.dat 加载方法信息
+     *
+     * @return
+     */
     public static Map<MethodReference.Handle, MethodReference> loadMethods() {
         try {
             Map<MethodReference.Handle, MethodReference> methodMap = new HashMap<>();

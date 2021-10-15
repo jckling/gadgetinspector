@@ -1,16 +1,16 @@
 package gadgetinspector.data;
 
 public class ClassReference {
-    private final String name;
-    private final String superClass;
-    private final String[] interfaces;
-    private final boolean isInterface;
-    private final Member[] members;
+    private final String name;          // 类名
+    private final String superClass;    // 父类名
+    private final String[] interfaces;  // 接口
+    private final boolean isInterface;  // 是否为接口
+    private final Member[] members;     // 字段/属性/成员
 
     public static class Member {
-        private final String name;
-        private final int modifiers;
-        private final ClassReference.Handle type;
+        private final String name;                  // 名称
+        private final int modifiers;                // 访问修饰符
+        private final ClassReference.Handle type;   // 所属类
 
         public Member(String name, int modifiers, Handle type) {
             this.name = name;
@@ -64,7 +64,7 @@ public class ClassReference {
     }
 
     public static class Handle {
-        private final String name;
+        private final String name;  // 类名
 
         public Handle(String name) {
             this.name = name;
@@ -90,6 +90,9 @@ public class ClassReference {
         }
     }
 
+    /**
+     * 数据工厂接口实现
+     */
     public static class Factory implements DataFactory<ClassReference> {
 
         @Override
@@ -102,10 +105,10 @@ public class ClassReference {
             }
 
             String[] memberEntries = fields[4].split("!");
-            Member[] members = new Member[memberEntries.length/3];
+            Member[] members = new Member[memberEntries.length / 3];
             for (int i = 0; i < members.length; i++) {
-                members[i] = new Member(memberEntries[3*i], Integer.parseInt(memberEntries[3*i+1]),
-                        new ClassReference.Handle(memberEntries[3*i+2]));
+                members[i] = new Member(memberEntries[3 * i], Integer.parseInt(memberEntries[3 * i + 1]),
+                        new ClassReference.Handle(memberEntries[3 * i + 2]));
             }
 
             return new ClassReference(

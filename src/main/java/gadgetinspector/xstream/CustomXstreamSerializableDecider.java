@@ -78,7 +78,7 @@ public class CustomXstreamSerializableDecider implements SerializableDecider {
                 }
             }
         } finally {
-            circularRefList.remove(circularRefList.size()-1);
+            circularRefList.remove(circularRefList.size() - 1);
         }
 
         serializableMap.put(clazz, Boolean.TRUE);
