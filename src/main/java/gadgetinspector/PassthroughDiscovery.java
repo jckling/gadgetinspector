@@ -258,7 +258,7 @@ public class PassthroughDiscovery {
     }
 
     /**
-     * 存储数据流信息
+     * 使用工厂方法存储存储数据流信息
      *
      * @throws IOException
      */
@@ -271,7 +271,7 @@ public class PassthroughDiscovery {
     }
 
     /**
-     * 加载数据流信息
+     * 从 passthrough.dat 加载数据流信息
      *
      * @return
      * @throws IOException
@@ -532,7 +532,7 @@ public class PassthroughDiscovery {
                                 for (ClassReference.Member member : clazz.getMembers()) {
                                     // 是否为目标字段
                                     if (member.getName().equals(name)) {
-                                        // 是否被 trasient 关键字修饰
+                                        // 是否被 transient 关键字修饰
                                         isTransient = (member.getModifiers() & Opcodes.ACC_TRANSIENT) != 0;
                                         break;
                                     }

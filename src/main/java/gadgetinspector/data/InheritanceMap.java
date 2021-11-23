@@ -84,7 +84,7 @@ public class InheritanceMap {
     }
 
     /**
-     * 加载继承关系
+     * 从 inheritanceMap.dat 加载继承关系信息
      *
      * @return
      * @throws IOException

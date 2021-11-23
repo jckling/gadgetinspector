@@ -212,7 +212,7 @@ public class CallGraphDiscovery {
                                 for (ClassReference.Member member : clazz.getMembers()) {
                                     // 是否为目标字段
                                     if (member.getName().equals(name)) {
-                                        // 是否被 trasient 关键字修饰
+                                        // 是否被 transient 关键字修饰
                                         isTransient = (member.getModifiers() & Opcodes.ACC_TRANSIENT) != 0;
                                         break;
                                     }
